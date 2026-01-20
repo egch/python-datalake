@@ -1,5 +1,5 @@
-# python-databricks
-Access to Databricks via python 
+# python DataLake
+Access to Azure DataLake via python 
 
 ## Setup
 Create the env
