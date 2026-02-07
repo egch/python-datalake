@@ -76,7 +76,7 @@ ngrok http 8000
 - Endpoint: WebHock
 - Copy the url created by ngrok, i.e.: https://semitransparently-proconciliation-socorro.ngrok-free.dev + /eventgrid
 
-## Sanity test
+## End-to-End Test (E2E)
 Publish a new BLOG into storage account.
 
 swagger: http://127.0.0.1:8000/docs#
