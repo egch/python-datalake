@@ -1,4 +1,4 @@
-# python DataLake
+# Azure FastAPI DataLake
 Access to Azure DataLake via python 
 ## Description
 This project demonstrates integration between a Python FastAPI application and an Azure Data Lake Storage account.
