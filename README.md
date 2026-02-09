@@ -45,7 +45,7 @@ Freeze the requirements
 Add a `.env` file with the access key of your ADSL
 ```properties
 ADLS_ACCOUNT_KEY=<YOUR_ACCESS_KEY>
-ADLS_ACCOUNT=<>YOUR_STORAGE_ACCOUNT>
+ADLS_ACCOUNT=<YOUR_STORAGE_ACCOUNT>
 
 ```
 ### URL
