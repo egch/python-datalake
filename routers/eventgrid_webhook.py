@@ -2,11 +2,20 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+
+from typing import List
+from fastapi import APIRouter
+from pydantic import BaseModel
+
 router = APIRouter()
 
 @router.post("/eventgrid")
 async def eventgrid_webhook(request: Request):
+
+    print("---- RAW EVENTGRID PAYLOAD ----")
     events = await request.json()
+    print(events)
+    print("--------------------------------")
 
     # Event Grid always sends a list of events
     if not isinstance(events, list) or not events:
@@ -37,3 +46,33 @@ async def eventgrid_webhook(request: Request):
 
     # Always ACK fast
     return JSONResponse({"ok": True})
+
+
+
+
+
+class EventGridData(BaseModel):
+    url: str | None = None
+    validationCode: str | None = None
+
+
+class EventGridEvent(BaseModel):
+    id: str
+    eventType: str
+    subject: str | None = None
+    data: EventGridData
+
+
+@router.post("/eventgrid-param")
+async def eventgrid_webhook_param(events: List[EventGridEvent]):
+    first_event = events[0]
+    event_type = first_event.eventType
+
+    if event_type == "Microsoft.EventGrid.SubscriptionValidationEvent":
+        return {"validationResponse": first_event.data.validationCode}
+
+    for event in events:
+        if event.eventType == "Microsoft.Storage.BlobCreated":
+            print("[eventgrid] blob created:", event.subject, event.data.url)
+
+    return {"ok": True}
