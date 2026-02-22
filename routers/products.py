@@ -22,7 +22,7 @@ def convert_products_csv_to_parquet():
     try:
         adls_key = require_adls_key()
 
-        timestamp = datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         parquet_url = convert_csv_to_parquet(
             adls_account=ADLS_ACCOUNT,
             adls_key=adls_key,
@@ -34,6 +34,29 @@ def convert_products_csv_to_parquet():
 
         return {"status": "ok", "parquet_url": parquet_url}
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/products/latest-parquet")
+def get_latest_parquet():
+    try:
+        adls_key = require_adls_key()
+        service = get_datalake_service_client(adls_key)
+        fs = service.get_file_system_client(DST_CONTAINER)
+
+        paths = list(fs.get_paths(recursive=True))
+        if not paths:
+            raise HTTPException(status_code=404, detail="No files found in product-curated container")
+
+        latest = max(paths, key=lambda p: p.last_modified)
+        return {
+            "name": latest.name,
+            "url": f"https://{ADLS_ACCOUNT}.dfs.core.windows.net/{DST_CONTAINER}/{latest.name}",
+            "last_modified": latest.last_modified.isoformat(),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
