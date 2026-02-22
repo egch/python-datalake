@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -52,14 +52,14 @@ async def eventgrid_webhook(request: Request):
 
 
 class EventGridData(BaseModel):
-    url: str | None = None
-    validationCode: str | None = None
+    url: Optional[str] = None
+    validationCode: Optional[str] = None
 
 
 class EventGridEvent(BaseModel):
     id: str
     eventType: str
-    subject: str | None = None
+    subject: Optional[str] = None
     data: EventGridData
 
 
