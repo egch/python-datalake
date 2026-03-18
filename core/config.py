@@ -11,6 +11,10 @@ DST_CONTAINER = os.getenv("DST_CONTAINER", "product-curated")
 PARQUET_CONTAINER = os.getenv("PARQUET_CONTAINER", "product-curated")
 PARQUET_PATH = os.getenv("PARQUET_PATH", "products/products.parquet")
 
+SERVICE_BUS_CONNECTION_STRING = os.getenv("SERVICE_BUS_CONNECTION_STRING")
+SERVICE_BUS_NAMESPACE = os.getenv("SERVICE_BUS_NAMESPACE", "egch-poc.servicebus.windows.net")
+SERVICE_BUS_QUEUE = os.getenv("SERVICE_BUS_QUEUE", "file-process-queue")
+
 def require_adls_key() -> str:
     key = os.environ.get("ADLS_ACCOUNT_KEY")
     if not key:
