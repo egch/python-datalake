@@ -29,6 +29,7 @@ pip install python-dotenv
 pip install azure-storage-file-datalake
 pip install pandas pyarrow
 pip install azure-storage-queue
+pip install azure-servicebus azure-identity
 ```
 
 Freeze the requirements
@@ -47,6 +48,7 @@ Add a `.env` file with the access key of your ADSL
 ADLS_ACCOUNT_KEY=<YOUR_ACCESS_KEY>
 ADLS_ACCOUNT=<YOUR_STORAGE_ACCOUNT>
 
+SERVICE_BUS_CONNECTION_STRING=<YOUR_SERVICE_BUS_CONNECTION_STRING>
 ```
 ### URL
 [health](http://127.0.0.1:8000/health)
