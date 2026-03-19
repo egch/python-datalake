@@ -98,6 +98,7 @@ blob_path: file-a.csv
 
 ### The code 
 [job code](../job/main.py)
+[fastapi code](../routers/jobs.py)
 
 ## 📊 7. Log Analytics Workspace
 
