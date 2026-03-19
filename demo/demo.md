@@ -21,6 +21,7 @@ This document describes the end-to-end flow:
 FastAPI exposes an endpoint to trigger the process.
 
 - Endpoint: `POST /jobs/trigger`
+- Swagger: [http://127.0.0.1:8000/docs#/jobs/trigger_job_jobs_trigger_post](http://127.0.0.1:8000/docs#/jobs/trigger_job_jobs_trigger_post)
 - Input: blob path
 - Output: `job_id` + `"queued"` status
 
