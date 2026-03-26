@@ -15,6 +15,10 @@ SERVICE_BUS_CONNECTION_STRING = os.getenv("SERVICE_BUS_CONNECTION_STRING")
 SERVICE_BUS_NAMESPACE = os.getenv("SERVICE_BUS_NAMESPACE", "egch-poc.servicebus.windows.net")
 SERVICE_BUS_QUEUE = os.getenv("SERVICE_BUS_QUEUE", "file-process-queue")
 
+EVENT_HUB_CONNECTION_STRING = os.getenv("EVENT_HUB_CONNECTION_STRING")
+EVENT_HUB_NAMESPACE = os.getenv("EVENT_HUB_NAMESPACE", "egch-poc.servicebus.windows.net")
+EVENT_HUB_NAME = os.getenv("EVENT_HUB_NAME", "file-process-hub")
+
 def require_adls_key() -> str:
     key = os.environ.get("ADLS_ACCOUNT_KEY")
     if not key:
