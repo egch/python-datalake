@@ -26,6 +26,10 @@ trigger   : Event Hub
 runtime   : Python 3.11 on Container Apps (Consumption plan)
 ```
 
+### Architecture view
+
+![Architecture view](images/architecture-view.png)
+
 ## Azure Resources
 
 | Resource | Name | Type |
@@ -52,6 +56,16 @@ runtime   : Python 3.11 on Container Apps (Consumption plan)
 | `EVENT_HUB_NAME` | `blobs-processed-by-function-hub` |
 | `EVENT_HUB_CONSUMER_GROUP` | `$Default` |
 | `AzureWebJobsStorage` | Full connection string for `egchsaaeh` |
+
+### Event Hub — namespace overview
+
+![Event Hub namespace](images/event-hub-ns.png)
+
+### Event Hub — partition configuration
+
+2 partitions, retention 168 hours (7 days).
+
+![Event Hub partitions](images/aeh-partitions.png)
 
 ### Scaling
 - **Min replicas:** 0 (scales to zero when idle)
@@ -86,19 +100,35 @@ source .env
 
 ## How to Trigger
 
-Upload a file via the FastAPI endpoint:
+Upload a file via the FastAPI Swagger UI at http://127.0.0.1:8000/docs — use `POST /upload/function` with a file attachment.
 
-```
-POST http://127.0.0.1:8000/upload/function
-Body: multipart/form-data — file
-```
+![Swagger upload](images/swagger-upload-function.png)
 
-Or via Swagger UI: http://127.0.0.1:8000/docs
+### File lands in the storage container
+
+After a successful upload, the blob appears in the `blobs-processed-by-function` container.
+
+![Storage container](images/container-file.png)
+
+### Event Hub receives the message
+
+The BlobCreated event is routed by Event Grid to the Event Hub. You can inspect it via the Data Explorer.
+
+![Event Hub peek message](images/peek-message-aeh.png)
 
 ## How to Monitor
 
 ### Function invocations
 **Portal → `egch-func-consumer` → Functions → `process_blob_event` → Invocations**
+
+The invocation log shows the full event payload received from the Event Hub, including event type, blob subject, and blob URL.
+
+![Function invocation log](images/function-log.png)
+
+### Function metrics
+**Portal → `egch-func-consumer` → Functions → `process_blob_event` → Metrics**
+
+![Function metrics](images/function-metrics.png)
 
 ### Logs in Log Analytics Workspace
 ```kql
