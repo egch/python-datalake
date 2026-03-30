@@ -19,6 +19,10 @@ EVENT_HUB_CONNECTION_STRING = os.getenv("EVENT_HUB_CONNECTION_STRING")
 EVENT_HUB_NAMESPACE = os.getenv("EVENT_HUB_NAMESPACE", "egch-poc.servicebus.windows.net")
 EVENT_HUB_NAME = os.getenv("EVENT_HUB_NAME", "file-process-hub")
 
+AZURE_STORAGE_ACCOUNT_CONNECTION_STRING = os.getenv("AZURE_STORAGE_ACCOUNT_CONNECTION_STRING")
+CONTAINER_FUNCTION = "blobs-processed-by-function"
+CONTAINER_JOB = "blobs-processed-by-container-job"
+
 def require_adls_key() -> str:
     key = os.environ.get("ADLS_ACCOUNT_KEY")
     if not key:
