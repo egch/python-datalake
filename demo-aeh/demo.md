@@ -32,16 +32,33 @@ runtime   : Python 3.11 on Container Apps (Consumption plan)
 
 ## Azure Resources
 
+### Shared
+
 | Resource | Name | Type |
 |---|---|---|
 | Storage account | `egchsaaeh` | Standard StorageV2 |
-| Storage container | `blobs-processed-by-function` | Blob container |
-| Event Grid subscription | `sub-blobs-processed-by-function` | EventGrid |
 | Event Hub namespace | `egch-poc-aeh` | Standard |
-| Event Hub | `blobs-processed-by-function-hub` | 2 partitions |
 | Container Apps Environment | `egch-container-env` | Consumption |
 | Log Analytics Workspace | `egch-logs` | LAWS |
+| Storage container (checkpoints) | `eventhub-checkpoints` | Blob container |
+
+### Azure Function Consumer
+
+| Resource | Name | Type |
+|---|---|---|
+| Storage container | `blobs-processed-by-function` | Blob container |
+| Event Grid subscription | `sub-blobs-processed-by-function` | EventGrid |
+| Event Hub | `blobs-processed-by-function-hub` | 2 partitions |
 | Function App | `egch-func-consumer` | Container Apps hosted |
+
+### Azure Container Apps Job Consumer
+
+| Resource | Name | Type |
+|---|---|---|
+| Storage container | `blobs-processed-by-container-job` | Blob container |
+| Event Grid subscription | `sub-blobs-processed-by-container-job` | EventGrid |
+| Event Hub | `blobs-processed-by-container-job-hub` | 2 partitions |
+| Container Apps Job | `egch-job-consumer` | Event triggered (KEDA) |
 
 ## Configuration
 
@@ -108,6 +125,13 @@ source .env
 ```
 
 ## How to Trigger
+
+The FastAPI exposes two upload endpoints, one per consumer:
+
+- `POST /upload/function` — uploads to `blobs-processed-by-function` → triggers Azure Function
+- `POST /upload/job` — uploads to `blobs-processed-by-container-job` → triggers ACJ
+
+![Swagger two endpoints](images/swagger-two-endpoints.png)
 
 Upload a file via the FastAPI Swagger UI at http://127.0.0.1:8000/docs — use `POST /upload/function` with a file attachment.
 
