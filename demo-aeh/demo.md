@@ -139,6 +139,13 @@ The invocation log shows the full event payload received from the Event Hub, inc
 
 ![Function metrics](images/function-metrics.png)
 
+### ACJ execution history
+**Portal → Container Apps Jobs → `egch-job-consumer` → Execution History**
+
+Each row represents one job execution triggered automatically by KEDA when a new message arrives in the Event Hub. The job processes the event and exits cleanly.
+
+![ACJ execution history](images/job-execution-history.png)
+
 ### Logs in Log Analytics Workspace
 ```kql
 ContainerAppConsoleLogs

@@ -19,6 +19,8 @@ properties:
             auth:
               - secretRef: eventhub-connection
                 triggerParameter: connection
+              - secretRef: checkpoint-storage-connection
+                triggerParameter: storageConnection
     secrets:
       - name: eventhub-connection
         value: "EVENTHUB_CONNECTION_PLACEHOLDER"
