@@ -21,9 +21,9 @@ properties:
                 triggerParameter: connection
     secrets:
       - name: eventhub-connection
-        value: EVENTHUB_CONNECTION_PLACEHOLDER
+        value: "EVENTHUB_CONNECTION_PLACEHOLDER"
       - name: checkpoint-storage-connection
-        value: CHECKPOINT_STORAGE_PLACEHOLDER
+        value: "CHECKPOINT_STORAGE_PLACEHOLDER"
   template:
     containers:
       - name: acj-consumer

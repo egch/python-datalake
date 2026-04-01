@@ -67,6 +67,15 @@ runtime   : Python 3.11 on Container Apps (Consumption plan)
 
 ![Event Hub partitions](images/aeh-partitions.png)
 
+### Azure Function — Event Hub Integration
+
+The binding between the Azure Function and the Event Hub is visible in the portal under:
+**`egch-func-consumer` → Functions → `process_blob_event` → Integration**
+
+It shows the Event Hub trigger configured with the hub name and consumer group, confirming the function is wired to `blobs-processed-by-function-hub`.
+
+![Event Hub integration](images/azure-event-hub-integration.png)
+
 ### Scaling
 - **Min replicas:** 0 (scales to zero when idle)
 - **Max replicas:** 10 (bounded by partition count — 2 partitions = max 2 useful instances)
@@ -140,3 +149,53 @@ ContainerAppConsoleLogs
 
 ### Event Hub metrics
 **Portal → Event Hub namespace → `blobs-processed-by-function-hub` → Metrics → Incoming Messages**
+
+## Q&A
+
+**Q: What happens when you upload a file to the `blobs-processed-by-function` container?**
+The file lands in the container, Event Grid detects the `BlobCreated` event and routes it to the Event Hub `blobs-processed-by-function-hub`.
+
+**Q: What triggers the Azure Function?**
+The message arriving in the Event Hub — the function has an Event Hub trigger and wakes up automatically when a new message is available.
+
+**Q: Where can you see the connection between the Event Hub and the Azure Function?**
+Portal → `egch-func-consumer` → Functions → `process_blob_event` → **Integration**. It shows the Event Hub trigger configured with the hub name and consumer group.
+
+**Q: How many instances of the Azure Function can run in parallel?**
+At most **2**, one per partition. Since the hub has 2 partitions, adding more instances beyond 2 would be useless — there are no extra partitions to assign them to.
+
+**Q: What happens when there are no messages in the Event Hub?**
+The Function App **scales to zero automatically** (min replicas = 0). No manual deactivation needed — it spins back up when a new message arrives.
+
+**Q: Where is the function code deployed?**
+As a Docker image on Docker Hub (`egch/func-consumer:latest`). Azure pulls the image when the Function App starts. Note: if you push a new `latest` image, you need to restart the Function App for it to pick up the new version.
+
+**Q: What is the role of `AzureWebJobsStorage`?**
+It's the storage account used internally by the Azure Functions runtime for checkpointing (tracking which Event Hub messages have been processed), distributed locking, and internal state management. Without it the function cannot start.
+
+**Q: How do you trigger the full chain end to end?**
+Call `POST /upload/function` from the FastAPI Swagger UI — the blob lands in the container, Event Grid fires, the Event Hub receives the message, and the Azure Function triggers and processes it.
+
+**Q: Is Azure Functions better than ACJ for Event Hub consumption?**
+Yes, for most cases:
+- Built-in Event Hub trigger — no KEDA or YAML needed
+- Automatic scaling per partition
+- Automatic checkpointing via `AzureWebJobsStorage`
+- Consumption plan — pay only when executing
+
+ACJ is better when:
+- Processing takes a very long time (hours)
+- Heavy batch workloads with complex dependencies
+- You need fine-grained control over retry and checkpoint logic
+
+**Q: What is the timeout limit of Azure Functions?**
+Default is **10 minutes**. On Container Apps it can be increased to unlimited via `host.json`:
+```json
+{
+  "version": "2.0",
+  "functionTimeout": "02:00:00"
+}
+```
+
+**Q: Can I just increase the timeout for long-running workloads?**
+Technically yes, but it is not recommended. If the function crashes or the instance is recycled, all progress is lost with no way to resume. For workloads taking 1-3 hours, **ACJ is the architecturally correct choice** — it has retry logic, can checkpoint progress, and is designed for long-running batch processing.

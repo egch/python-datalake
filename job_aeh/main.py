@@ -15,10 +15,17 @@ CHECKPOINT_CONTAINER = os.getenv("CHECKPOINT_CONTAINER", "eventhub-checkpoints")
 
 def process_message(message_body: str):
     payload = json.loads(message_body)
-    job_id = payload.get("job_id")
-    blob_path = payload.get("blob_path")
-    print(f"job_id: {job_id}")
-    print(f"blob_path: {blob_path}")
+
+    # Event Grid sends events as a list
+    events = payload if isinstance(payload, list) else [payload]
+
+    for event in events:
+        subject = event.get("subject", "")
+        event_type = event.get("eventType", "")
+        blob_url = event.get("data", {}).get("url", "")
+        print(f"event_type: {event_type}")
+        print(f"subject   : {subject}")
+        print(f"blob_url  : {blob_url}")
 
 
 def main():
