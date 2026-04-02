@@ -1,0 +1,32 @@
+# Web framework
+fastapi
+uvicorn
+
+# Environment variables
+python-dotenv
+
+# Azure Data Lake Storage
+azure-storage-file-datalake
+
+# Azure Storage Queue
+azure-storage-queue
+
+# Azure Blob Storage
+azure-storage-blob
+
+# File upload support
+python-multipart
+
+# Azure Service Bus
+azure-servicebus
+
+# Azure Event Hub
+azure-eventhub
+azure-eventhub-checkpointstoreblob
+
+# Azure authentication
+azure-identity
+
+# Data processing
+pandas
+pyarrow

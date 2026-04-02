@@ -18,7 +18,7 @@ This documents the end-to-end configuration for triggering an Azure Container Ap
 
 ## 2. Build and Push Docker Image to Docker Hub
 
-The job container is built from `job/Dockerfile`.
+The job container is built from `job_asb/Dockerfile`.
 
 ### Prerequisites
 
@@ -34,7 +34,7 @@ docker login
 ### Build the Image
 
 ```bash
-cd job
+cd asb
 docker build -t <dockerhub-username>/process-file-job:latest .
 ```
 
@@ -121,7 +121,7 @@ Messages published to the queue must be JSON with the following structure:
 
 1. A message is published to the `file-process-queue` Service Bus queue
 2. KEDA detects the message via the scale rule and triggers a new job execution
-3. The job container runs `job/main.py`, which:
+3. The job container runs `job_asb/main.py`, which:
    - Connects to Service Bus using `SERVICE_BUS_CONNECTION_STRING`
    - Reads one message from the queue
    - Calls `process_message()` with the message body

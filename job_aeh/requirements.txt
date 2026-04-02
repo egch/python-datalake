@@ -1,0 +1,4 @@
+azure-eventhub
+azure-eventhub-checkpointstoreblob
+azure-identity
+python-dotenv

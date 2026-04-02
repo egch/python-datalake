@@ -1,0 +1,46 @@
+properties:
+  configuration:
+    triggerType: Event
+    replicaTimeout: 300
+    replicaRetryLimit: 1
+    eventTriggerConfig:
+      replicaCompletionCount: 1
+      parallelism: 1
+      scale:
+        minExecutions: 0
+        maxExecutions: 2
+        rules:
+          - name: eventhub-scaler
+            type: azure-eventhub
+            metadata:
+              eventHubName: ACJ_EVENTHUB_NAME_PLACEHOLDER
+              consumerGroup: $Default
+              unprocessedEventThreshold: "1"
+            auth:
+              - secretRef: eventhub-connection
+                triggerParameter: connection
+              - secretRef: checkpoint-storage-connection
+                triggerParameter: storageConnection
+    secrets:
+      - name: eventhub-connection
+        value: "EVENTHUB_CONNECTION_PLACEHOLDER"
+      - name: checkpoint-storage-connection
+        value: "CHECKPOINT_STORAGE_PLACEHOLDER"
+  template:
+    containers:
+      - name: acj-consumer
+        image: docker.io/egch/job-consumer:latest
+        resources:
+          cpu: 0.5
+          memory: 1.0Gi
+        env:
+          - name: EVENT_HUB_CONNECTION_STRING
+            secretRef: eventhub-connection
+          - name: EVENT_HUB_NAME
+            value: ACJ_EVENTHUB_NAME_PLACEHOLDER
+          - name: EVENT_HUB_CONSUMER_GROUP
+            value: $Default
+          - name: CHECKPOINT_STORAGE_CONNECTION_STRING
+            secretRef: checkpoint-storage-connection
+          - name: CHECKPOINT_CONTAINER
+            value: eventhub-checkpoints
