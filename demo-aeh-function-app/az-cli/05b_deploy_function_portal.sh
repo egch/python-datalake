@@ -31,12 +31,33 @@ if [ -z "$FUNC_EXISTS" ]; then
     --runtime python \
     --runtime-version 3.11 \
     --functions-version 4 \
+    --configure-networking-later \
     --output table
 else
   echo "Function App $PORTAL_FUNC_APP_NAME already exists, skipping creation."
 fi
 
-# ── 2. Configure app settings ─────────────────────────────────────────────────
+# ── 2. VNet integration (required — storage account has network restrictions) ──
+echo "Adding VNet integration: $AZURE_VNET_NAME/$AZURE_SUBNET_NAME"
+VNET_RESOURCE_ID=$(az network vnet show \
+  --name "$AZURE_VNET_NAME" \
+  --resource-group "$AZURE_NETWORK_RESOURCE_GROUP" \
+  --query id --output tsv)
+
+SUBNET_RESOURCE_ID=$(az network vnet subnet show \
+  --name "$AZURE_SUBNET_NAME" \
+  --resource-group "$AZURE_NETWORK_RESOURCE_GROUP" \
+  --vnet-name "$AZURE_VNET_NAME" \
+  --query id --output tsv)
+
+az functionapp vnet-integration add \
+  --name "$PORTAL_FUNC_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --vnet "$VNET_RESOURCE_ID" \
+  --subnet "$SUBNET_RESOURCE_ID" \
+  --output table
+
+# ── 3. Configure app settings ─────────────────────────────────────────────────
 echo "Configuring app settings"
 az functionapp config appsettings set \
   --name "$PORTAL_FUNC_APP_NAME" \
