@@ -1,0 +1,18 @@
+# GitLab CI only — not compatible with GitHub Actions
+# Triggers on changes to func_consumer/ and pushes the Docker image to the registry.
+#
+# Required CI/CD variables (Settings → CI/CD → Variables):
+#   DOCKER_HUB_USER  — Docker Hub username
+#   DOCKER_HUB_TOKEN — Docker Hub access token
+
+build-func-consumer:
+  image: docker:24
+  services:
+    - docker:24-dind
+  only:
+    changes:
+      - demo-aeh-function-app/func_consumer/**
+  script:
+    - docker login -u $DOCKER_HUB_USER -p $DOCKER_HUB_TOKEN
+    - docker build -t egch/func-consumer-ehfa:latest demo-aeh-function-app/func_consumer/
+    - docker push egch/func-consumer-ehfa:latest

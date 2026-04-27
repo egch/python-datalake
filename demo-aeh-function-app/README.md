@@ -117,6 +117,12 @@ All other variables have defaults defined in `.env.example`.
 - **Event types:** `Microsoft.Storage.BlobCreated`, `Microsoft.Storage.BlobUpdated`, `Microsoft.Storage.BlobDeleted`, `Microsoft.Storage.BlobTierChanged`
 - **Subject begins with:** `/blobServices/default/containers/uploads`
 
+## CI/CD
+
+A GitLab CI pipeline is provided in [`.gitlab-ci.yml`](.gitlab-ci.yml). It triggers automatically when `func_consumer/` changes and rebuilds and pushes the Docker image. Two CI/CD variables are required: `DOCKER_HUB_USER` and `DOCKER_HUB_TOKEN` (set under **Settings → CI/CD → Variables** in GitLab).
+
+> This file is GitLab-specific and is not compatible with GitHub Actions.
+
 ## Deployment Scripts
 
 Located in `az-cli/`, run in order:
