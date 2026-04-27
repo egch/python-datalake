@@ -1,0 +1,10 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "EVENT_HUB_CONNECTION_STRING": "",
+    "EVENT_HUB_NAME": "evh-eh-fa",
+    "EVENT_HUB_CONSUMER_GROUP": "$Default"
+  }
+}
