@@ -377,6 +377,17 @@ VNet: vnet-eh-fa (10.0.0.0/16)
           DNS zone linked to vnet-eh-fa
 ```
 
+You can verify the private endpoint in the portal under **`evhns-eh-fa` → Networking → Private access**:
+
+![Private endpoint in the portal](images/private-endpoint-portal.png)
+
+| Field | Value | Meaning |
+|---|---|---|
+| Name | `pe-evhns-eh-fa` | the private endpoint resource created by script 06 |
+| Subnet | `vnet-eh-fa/snet-eh-fa-pe` | the dedicated PE subnet (10.0.2.0/24) |
+| Sub-resource | `namespace` | wired to the whole Event Hub namespace |
+| Connection state | `Approved / Auto-Approved` | active and working |
+
 ### Running script 06
 
 Scripts 01–05 must already be deployed. Then:
