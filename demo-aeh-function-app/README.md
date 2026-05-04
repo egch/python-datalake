@@ -63,9 +63,23 @@ region    : Switzerland North
 | Region | Configurable | Switzerland North |
 | Plan SKU | Consumption | EP1 (required for VNet trigger support) |
 
+> **Why is VNet integration on the outbound side?**
+> Event Hub does **not** push events to the Function App. The Function App's host opens a
+> persistent outbound AMQP connection to Event Hub and continuously polls for new messages:
+> ```
+> Function App ──(outbound AMQP)──→ Event Hub
+>                  "any new messages?"
+>                  ← "yes, here are 3" → function invoked
+>                  "any new messages?"
+>                  ← "no" ...
+> ```
+> Event Hub never initiates a connection to the Function App. The Function App always
+> initiates to Event Hub — so the VNet integration sits on the **outbound** side.
+
 > **Why Elastic Premium and not Consumption?**
-> Consumption plan supports VNet integration for outbound traffic only.
-> Triggering from a private Event Hub endpoint requires at minimum an **Elastic Premium** plan.
+> The Function App must keep that persistent outbound AMQP connection alive 24/7.
+> Consumption plan cannot maintain a persistent outbound VNet connection — it requires
+> at minimum an **Elastic Premium** plan.
 
 ## Function Code
 
@@ -292,22 +306,42 @@ Script 04 sets this up before public network is ever disabled. Script 06 enables
 
 ### Path 2 — Function App → Event Hub (private endpoint + DNS)
 
-`WEBSITE_VNET_ROUTE_ALL=1` routes the Function App's outbound traffic through the VNet, but without a private endpoint the traffic still exits to the public hostname — which is blocked.
+**The Function App is not aware of the private endpoint.** It uses the same connection string as always — `evhns-eh-fa.servicebus.windows.net`. The private endpoint is completely transparent to the application. Here is what happens step by step:
+
+```
+Function App connects to evhns-eh-fa.servicebus.windows.net
+        ↓
+DNS lookup — "what IP is evhns-eh-fa.servicebus.windows.net?"
+        ↓
+Private DNS zone (linked to the VNet) intercepts the query
+        ↓
+Returns 10.0.2.4  ← the private endpoint NIC inside the VNet
+        ↓
+Function App connects to 10.0.2.4 — traffic stays inside the VNet
+        ↓
+Event Hub accepts the connection (came via private endpoint, not public network)
+```
+
+Without the private endpoint, the same DNS lookup returns the public IP — and with `PublicNetworkAccess: Disabled` that connection is rejected.
+
+Each component has exactly one job:
+
+| Component | Job |
+|---|---|
+| Private endpoint | Creates a NIC with a private IP (e.g. 10.0.2.4) inside the VNet, wired to the Event Hub namespace |
+| Private DNS zone | Makes `evhns-eh-fa.servicebus.windows.net` resolve to 10.0.2.4 instead of the public IP — but only from within the VNet |
+| VNet integration + `WEBSITE_VNET_ROUTE_ALL=1` | Ensures the Function App's traffic (including DNS queries) goes through the VNet |
 
 ```
 VNet: vnet-eh-fa (10.0.0.0/16)
   ├── snet-eh-fa      (10.0.1.0/24)  ← Function App
-  └── snet-eh-fa-pe   (10.0.2.0/24)  ← Private Endpoint NIC
-                              ↑
-                  pe-evhns-eh-fa (private IP, e.g. 10.0.2.4)
+  └── snet-eh-fa-pe   (10.0.2.0/24)  ← Private Endpoint NIC (10.0.2.4)
                               ↑
           Private DNS Zone: privatelink.servicebus.windows.net
             A record: evhns-eh-fa → 10.0.2.4 (auto-registered by zone group)
                               ↑
           DNS zone linked to vnet-eh-fa
 ```
-
-When the Function App resolves `evhns-eh-fa.servicebus.windows.net`, Azure DNS returns the private IP. Traffic never leaves the VNet. **No change to the connection string or Function App code is required.**
 
 ### Running script 06
 
@@ -318,11 +352,11 @@ Scripts 01–05 must already be deployed. Then:
 ```
 
 Steps in order:
-1. Disables public network access on the Event Hub namespace
-2. Enables trusted Microsoft services bypass (keeps Event Grid working)
-3. Creates private endpoint `pe-evhns-eh-fa` in `snet-eh-fa-pe`
-4. Creates private DNS zone `privatelink.servicebus.windows.net` and links it to the VNet
-5. Registers the PE NIC IP in the DNS zone via a zone group (automatic A record)
+1. Creates private endpoint `pe-evhns-eh-fa` in `snet-eh-fa-pe`
+2. Creates private DNS zone `privatelink.servicebus.windows.net` and links it to the VNet
+3. Registers the PE NIC IP in the DNS zone via a zone group (automatic A record)
+
+> Public network access and trusted service access are already configured in script 03 at namespace creation time.
 
 ### Verifying the setup
 
