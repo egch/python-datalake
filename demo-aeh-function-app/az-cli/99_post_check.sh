@@ -18,14 +18,14 @@ az eventgrid system-topic event-subscription show \
   --output table
 
 # ── 2. Upload a test blob to trigger the flow ─────────────────────────────────
-echo "── 2. Uploading test blob to trigger the flow"
-az storage blob upload \
-  --account-name "$AZURE_STORAGE_ACCOUNT" \
-  --container-name "$AZURE_STORAGE_CONTAINER" \
-  --name "test.txt" \
-  --data "hello" \
-  --auth-mode login \
-  --overwrite
+#echo "── 2. Uploading test blob to trigger the flow"
+#az storage blob upload \
+#--account-name "$AZURE_STORAGE_ACCOUNT" \
+#--container-name "$AZURE_STORAGE_CONTAINER" \
+#--name "test.txt" \
+#--data "hello" \
+#--auth-mode login \
+#--overwrite
 
 # ── 3. Check Event Hub incoming messages ──────────────────────────────────────
 echo "── 3. Event Hub incoming messages (last 5 minutes)"
@@ -69,5 +69,4 @@ az eventhubs namespace show \
 echo "── 7. Streaming Function App host logs (Ctrl+C to stop)"
 az webapp log tail \
   --name "$AZURE_FUNC_APP_NAME" \
-  --resource-group "$AZURE_RESOURCE_GROUP" \
-  --filter "Host"
+  --resource-group "$AZURE_RESOURCE_GROUP"
