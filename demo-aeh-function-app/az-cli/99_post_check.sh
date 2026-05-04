@@ -58,8 +58,15 @@ az functionapp config appsettings list \
   --query "[?name=='EVENT_HUB_CONNECTION_STRING' || name=='AzureWebJobsStorage' || name=='EVENT_HUB_NAME' || name=='EVENT_HUB_CONSUMER_GROUP']" \
   --output table
 
-# ── 6. Stream Function App host logs ─────────────────────────────────────────
-echo "── 6. Streaming Function App host logs (Ctrl+C to stop)"
+# ── 6. Check if local auth (SAS keys) is disabled on Event Hub namespace ──────
+echo "── 6. Event Hub local auth disabled?"
+az eventhubs namespace show \
+  --name "$AZURE_EVENTHUB_NAMESPACE" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query "disableLocalAuth" --output tsv
+
+# ── 7. Stream Function App host logs ─────────────────────────────────────────
+echo "── 7. Streaming Function App host logs (Ctrl+C to stop)"
 az webapp log tail \
   --name "$AZURE_FUNC_APP_NAME" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
