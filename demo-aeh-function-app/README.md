@@ -89,7 +89,7 @@ Located in [`func_consumer/`](func_consumer/function_app.py). The function has a
 @app.event_hub_message_trigger(
     arg_name="event",
     event_hub_name="%EVENT_HUB_NAME%",
-    connection="EVENT_HUB_CONNECTION_STRING",
+    connection="EVENT_HUB_CONNECTION",
     consumer_group="%EVENT_HUB_CONSUMER_GROUP%",
     cardinality="one",
 )
@@ -108,6 +108,21 @@ Built from `func_consumer/Dockerfile` using the official Azure Functions Python 
 mcr.microsoft.com/azure-functions/python:4-python3.11
 ```
 
+## Authentication
+
+SAS keys are disabled on the Event Hub namespace (`DisableLocalAuth: true`). All clients must authenticate with **managed identity + RBAC**. No connection strings are used for Event Hub data plane operations.
+
+Two managed identities are assigned roles on the namespace:
+
+| Identity | Type | Role | Used by |
+|---|---|---|---|
+| `func-eh-fa` | system-assigned | `Azure Event Hubs Data Receiver` | Function App trigger (consume messages) |
+| `evgt-storage-eh-fa` | system-assigned | `Azure Event Hubs Data Sender` | Event Grid delivery (publish messages) |
+
+![IAM role assignments on the Event Hub namespace](images/AzureEventHubsDataReceiver.png)
+
+You can verify the role assignments in the portal under **`evhns-eh-fa` → Access control (IAM) → Role assignments**, filtering by name `event`.
+
 ## Configuration
 
 ### .env
@@ -118,19 +133,21 @@ Copy `az-cli/.env.example` to `az-cli/.env` and fill in:
 |---|---|
 | `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID |
 | `AZURE_STORAGE_ACCOUNT_CONNECTION_STRING` | Retrieved after running script 02 |
-| `EVENT_HUB_CONNECTION_STRING` | Retrieved after running script 03 |
 
-All other variables have defaults defined in `.env.example`.
+All other variables have defaults defined in `.env.example`. `EVENT_HUB_CONNECTION_STRING` is no longer needed — the Function App authenticates via managed identity.
 
 ### Function App Settings
 
 | Setting | Value |
 |---|---|
 | `AzureWebJobsStorage` | Storage account connection string |
-| `EVENT_HUB_CONNECTION_STRING` | Event Hub namespace connection string |
+| `EVENT_HUB_CONNECTION__fullyQualifiedNamespace` | `evhns-eh-fa.servicebus.windows.net` |
 | `EVENT_HUB_NAME` | `evh-eh-fa` |
 | `EVENT_HUB_CONSUMER_GROUP` | `$Default` |
 | `WEBSITE_VNET_ROUTE_ALL` | `1` — route all outbound traffic through VNet |
+
+> **Why `__fullyQualifiedNamespace` instead of a connection string?**
+> This is the Azure Functions convention for identity-based connections. The `EVENT_HUB_CONNECTION` prefix matches the `connection="EVENT_HUB_CONNECTION"` parameter in `function_app.py`. The `__fullyQualifiedNamespace` suffix tells the Functions host to use `DefaultAzureCredential` (managed identity in Azure, `az login` locally) instead of a SAS key.
 
 ### Event Grid Subscription Filters
 
@@ -173,7 +190,7 @@ az eventhubs namespace authorization-rule keys list \
   --query primaryConnectionString --output tsv
 ```
 
-> **Important:** fill `EVENT_HUB_CONNECTION_STRING` in `.env` before running script 05. Script 05 reads it from `.env` to configure the Function App settings. If it is empty when script 05 runs, the Function App will start but the trigger will fail — and you will have to set all the keys manually in the portal.
+> **Important:** `EVENT_HUB_CONNECTION_STRING` is no longer used. Script 05 configures the Function App with `EVENT_HUB_CONNECTION__fullyQualifiedNamespace` and assigns the managed identity role automatically — no manual key retrieval needed.
 
 ## Local Development
 
@@ -191,7 +208,7 @@ cd func_consumer
 func start
 ```
 
-> **Note:** `load_settings.sh` overwrites `local.settings.json` with real connection strings — do not commit it afterwards.
+> **Note:** `load_settings.sh` overwrites `local.settings.json` with real values — do not commit it afterwards. Local development uses `DefaultAzureCredential` which picks up your `az login` session. Your Azure account must have the `Azure Event Hubs Data Receiver` role on the namespace.
 
 ## How to Trigger
 
@@ -241,7 +258,7 @@ If the Function App is running but functions fail to load, the most likely cause
 |---|---|
 | `FUNCTIONS_WORKER_RUNTIME` | `python` (literal value) |
 | `AzureWebJobsStorage` | `az storage account show-connection-string --name saehfa --resource-group rg-eh-fa --query connectionString --output tsv` |
-| `EVENT_HUB_CONNECTION_STRING` | `az eventhubs namespace authorization-rule keys list --resource-group rg-eh-fa --namespace-name evhns-eh-fa --name RootManageSharedAccessKey --query primaryConnectionString --output tsv` |
+| `EVENT_HUB_CONNECTION__fullyQualifiedNamespace` | `evhns-eh-fa.servicebus.windows.net` (literal value) |
 | `EVENT_HUB_NAME` | `evh-eh-fa` (literal value) |
 | `EVENT_HUB_CONSUMER_GROUP` | `$Default` (literal value) |
 
@@ -459,9 +476,9 @@ az eventhubs namespace update \
 
 ### Function not triggering — diagnostic chain
 
-**1. Check that `EVENT_HUB_CONNECTION_STRING` is set:**
+**1. Check that `EVENT_HUB_CONNECTION__fullyQualifiedNamespace` is set:**
 ```shell
-az functionapp config appsettings list --name func-eh-fa --resource-group rg-eh-fa --query "[?name=='EVENT_HUB_CONNECTION_STRING'].value" --output tsv
+az functionapp config appsettings list --name func-eh-fa --resource-group rg-eh-fa --query "[?name=='EVENT_HUB_CONNECTION__fullyQualifiedNamespace'].value" --output tsv
 ```
 
 **2. Check the Event Grid subscription is healthy:**
