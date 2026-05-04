@@ -31,4 +31,12 @@ az network vnet subnet create \
   --address-prefix "$AZURE_SUBNET_ADDRESS_PREFIX" \
   --output table
 
+echo "Creating private endpoint subnet: $AZURE_PE_SUBNET_NAME"
+az network vnet subnet create \
+  --name "$AZURE_PE_SUBNET_NAME" \
+  --resource-group "$AZURE_NETWORK_RESOURCE_GROUP" \
+  --vnet-name "$AZURE_VNET_NAME" \
+  --address-prefix "$AZURE_PE_SUBNET_ADDRESS_PREFIX" \
+  --output table
+
 echo "Done."
