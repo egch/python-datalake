@@ -1,5 +1,7 @@
 #!/bin/bash
-# Build, push and deploy the Azure Function App with VNet integration on the subnet
+# Build, push and deploy the Azure Function App with VNet integration on the subnet.
+# The Function App uses a system-assigned managed identity to authenticate to Event Hub
+# (SAS keys are disabled on the namespace).
 set -euo pipefail
 source "$(dirname "$0")/.env"
 
@@ -8,10 +10,6 @@ SCRIPT_DIR="$(dirname "$0")"
 # ── 0. Pre-flight checks ──────────────────────────────────────────────────────
 if [ -z "${AZURE_STORAGE_ACCOUNT_CONNECTION_STRING:-}" ]; then
   echo "ERROR: AZURE_STORAGE_ACCOUNT_CONNECTION_STRING is not set in .env" >&2
-  exit 1
-fi
-if [ -z "${EVENT_HUB_CONNECTION_STRING:-}" ]; then
-  echo "ERROR: EVENT_HUB_CONNECTION_STRING is not set in .env" >&2
   exit 1
 fi
 
@@ -70,10 +68,34 @@ else
   echo "Function App $AZURE_FUNC_APP_NAME already exists, skipping creation."
 fi
 
-# ── 5. Integrate Function App with subnet ────────────────────────────────────
+# ── 5. Enable system-assigned managed identity ────────────────────────────────
+echo "Enabling system-assigned managed identity on Function App"
+az functionapp identity assign \
+  --name "$AZURE_FUNC_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --output table
+
+FUNC_PRINCIPAL_ID=$(az functionapp identity show \
+  --name "$AZURE_FUNC_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query principalId --output tsv)
+
+# ── 6. Assign Azure Event Hubs Data Receiver role ─────────────────────────────
+EVENTHUB_NAMESPACE_RESOURCE_ID=$(az eventhubs namespace show \
+  --name "$AZURE_EVENTHUB_NAMESPACE" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query id --output tsv)
+
+echo "Assigning Azure Event Hubs Data Receiver to principal: $FUNC_PRINCIPAL_ID"
+az role assignment create \
+  --assignee "$FUNC_PRINCIPAL_ID" \
+  --role "Azure Event Hubs Data Receiver" \
+  --scope "$EVENTHUB_NAMESPACE_RESOURCE_ID" \
+  --output table
+
+# ── 7. Integrate Function App with subnet ─────────────────────────────────────
 echo "Adding VNet integration: $AZURE_VNET_NAME/$AZURE_SUBNET_NAME"
 
-# VNet lives in a different resource group — must use resource IDs, not names
 VNET_RESOURCE_ID=$(az network vnet show \
   --name "$AZURE_VNET_NAME" \
   --resource-group "$AZURE_NETWORK_RESOURCE_GROUP" \
@@ -92,18 +114,18 @@ az functionapp vnet-integration add \
   --subnet "$SUBNET_RESOURCE_ID" \
   --output table
 
-# ── 6. Configure app settings ─────────────────────────────────────────────────
+# ── 8. Configure app settings ─────────────────────────────────────────────────
 echo "Configuring app settings"
 
 SETTINGS_FILE=$(mktemp /tmp/func_settings_XXXXXX.json)
 cat > "$SETTINGS_FILE" <<EOF
 [
-  {"name": "FUNCTIONS_WORKER_RUNTIME",      "value": "python"},
-  {"name": "AzureWebJobsStorage",         "value": "${AZURE_STORAGE_ACCOUNT_CONNECTION_STRING}"},
-  {"name": "EVENT_HUB_CONNECTION_STRING", "value": "${EVENT_HUB_CONNECTION_STRING}"},
-  {"name": "EVENT_HUB_NAME",              "value": "${AZURE_EVENTHUB_NAME}"},
-  {"name": "EVENT_HUB_CONSUMER_GROUP",    "value": "\$Default"},
-  {"name": "WEBSITE_VNET_ROUTE_ALL",      "value": "1"}
+  {"name": "FUNCTIONS_WORKER_RUNTIME",                        "value": "python"},
+  {"name": "AzureWebJobsStorage",                             "value": "${AZURE_STORAGE_ACCOUNT_CONNECTION_STRING}"},
+  {"name": "EVENT_HUB_CONNECTION__fullyQualifiedNamespace",   "value": "${AZURE_EVENTHUB_NAMESPACE}.servicebus.windows.net"},
+  {"name": "EVENT_HUB_NAME",                                  "value": "${AZURE_EVENTHUB_NAME}"},
+  {"name": "EVENT_HUB_CONSUMER_GROUP",                        "value": "\$Default"},
+  {"name": "WEBSITE_VNET_ROUTE_ALL",                          "value": "1"}
 ]
 EOF
 

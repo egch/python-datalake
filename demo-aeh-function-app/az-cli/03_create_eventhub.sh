@@ -4,13 +4,14 @@
 set -euo pipefail
 source "$(dirname "$0")/.env"
 
-echo "Creating Event Hub namespace: $AZURE_EVENTHUB_NAMESPACE (public network: Disabled)"
+echo "Creating Event Hub namespace: $AZURE_EVENTHUB_NAMESPACE (public network: Disabled, local auth: Disabled)"
 az eventhubs namespace create \
   --name "$AZURE_EVENTHUB_NAMESPACE" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --location "$AZURE_REGION" \
   --sku Standard \
   --public-network-access Disabled \
+  --disable-local-auth true \
   --output table
 
 echo "Enabling trusted Microsoft services bypass"

@@ -9,7 +9,7 @@ app = func.FunctionApp()
 @app.event_hub_message_trigger(
     arg_name="event",
     event_hub_name="%EVENT_HUB_NAME%",
-    connection="EVENT_HUB_CONNECTION_STRING",
+    connection="EVENT_HUB_CONNECTION",
     consumer_group="%EVENT_HUB_CONSUMER_GROUP%",
     cardinality="one",
 )
