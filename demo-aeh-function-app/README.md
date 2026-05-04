@@ -306,6 +306,40 @@ Script 04 sets this up before public network is ever disabled. Script 06 enables
 
 ### Path 2 — Function App → Event Hub (private endpoint + DNS)
 
+#### Why the private endpoint is needed
+
+Event Hub has one door — its public endpoint (`evhns-eh-fa.servicebus.windows.net`). We closed that door with `PublicNetworkAccess: Disabled`.
+
+The Function App is inside a VNet, but being inside a VNet does not automatically give it a way to reach Event Hub — Event Hub is not inside the VNet. Without a private endpoint, the Function App has no reachable address for Event Hub:
+
+```
+┌─────────────────────────────┐
+│  VNet (10.0.0.0/16)         │
+│                             │        Event Hub
+│  Function App               │       [door: CLOSED]
+│  "I need to reach EH..."    │──────────────✗
+│                             │     (public endpoint disabled)
+└─────────────────────────────┘
+```
+
+The private endpoint puts a door to Event Hub **inside the VNet**:
+
+```
+┌─────────────────────────────┐
+│  VNet (10.0.0.0/16)         │
+│                             │
+│  Function App               │        Event Hub
+│       │                     │       [door: CLOSED]
+│       ↓                     │
+│  10.0.2.4 (PE NIC) ─────────┼──────→ [private tunnel: OPEN]
+│                             │
+└─────────────────────────────┘
+```
+
+The private DNS zone is what tells the Function App: "when you look up `evhns-eh-fa.servicebus.windows.net`, don't use the public IP — use `10.0.2.4` instead."
+
+#### How it works in practice
+
 **The Function App is not aware of the private endpoint.** It uses the same connection string as always — `evhns-eh-fa.servicebus.windows.net`. The private endpoint is completely transparent to the application. Here is what happens step by step:
 
 ```
