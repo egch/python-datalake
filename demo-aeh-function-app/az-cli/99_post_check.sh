@@ -50,8 +50,17 @@ az network vnet subnet show \
   --vnet-name "$AZURE_VNET_NAME" \
   --query "networkSecurityGroup.id" --output tsv
 
-# ── 5. Stream Function App logs ───────────────────────────────────────────────
-echo "── 5. Streaming Function App logs (Ctrl+C to stop)"
+# ── 5. Function App settings check ───────────────────────────────────────────
+echo "── 5. Function App key settings"
+az functionapp config appsettings list \
+  --name "$AZURE_FUNC_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query "[?name=='EVENT_HUB_CONNECTION_STRING' || name=='AzureWebJobsStorage' || name=='EVENT_HUB_NAME' || name=='EVENT_HUB_CONSUMER_GROUP']" \
+  --output table
+
+# ── 6. Stream Function App host logs ─────────────────────────────────────────
+echo "── 6. Streaming Function App host logs (Ctrl+C to stop)"
 az webapp log tail \
-  --name "$AZURE_FUNCTION_APP_NAME" \
-  --resource-group "$AZURE_RESOURCE_GROUP"
+  --name "$AZURE_FUNC_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --filter "Host"
