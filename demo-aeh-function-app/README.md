@@ -47,6 +47,7 @@ region    : Switzerland North
 | Event Hub | `evh-eh-fa` | 2 partitions |
 | Event Grid System Topic | `evgt-storage-eh-fa` | system-assigned managed identity |
 | Event Grid Subscription | `sub-container-eh-fa` | managed identity delivery to Event Hub |
+| User-Assigned Managed Identity | `uami-eh-fa` | used by Function App to authenticate to Event Hub |
 | App Service Plan | `asp-eh-fa` | Elastic Premium EP1 (Linux) |
 | Function App | `func-eh-fa` | VNet-integrated |
 | Private Endpoint | `pe-evhns-eh-fa` | Event Hub namespace — created by script 06 |
@@ -116,12 +117,42 @@ Two managed identities are assigned roles on the namespace:
 
 | Identity | Type | Role | Used by |
 |---|---|---|---|
-| `func-eh-fa` | system-assigned | `Azure Event Hubs Data Receiver` | Function App trigger (consume messages) |
+| `uami-eh-fa` | user-assigned | `Azure Event Hubs Data Receiver` | Function App trigger (consume messages) |
 | `evgt-storage-eh-fa` | system-assigned | `Azure Event Hubs Data Sender` | Event Grid delivery (publish messages) |
 
 ![IAM role assignments on the Event Hub namespace](images/AzureEventHubsDataReceiver.png)
 
 You can verify the role assignments in the portal under **`evhns-eh-fa` → Access control (IAM) → Role assignments**, filtering by name `event`.
+
+### Why UAMI instead of SAMI?
+
+A **system-assigned managed identity (SAMI)** is tied to the lifecycle of the resource it belongs to — when the Function App is deleted and recreated, the SAMI gets a new `principalId`, which breaks all existing RBAC role assignments and requires re-running the identity configuration.
+
+A **user-assigned managed identity (UAMI)** is an independent Azure resource. Its `principalId` and role assignments survive Function App deletions and redeployments. This matches the pattern used in corporate environments (e.g. UBS) where identities are managed centrally and pre-granted permissions before the app is deployed.
+
+The UAMI is identified to the Functions host via two app settings:
+- `EVENT_HUB_CONNECTION__fullyQualifiedNamespace` — the Event Hub endpoint
+- `EVENT_HUB_CONNECTION__clientId` — tells the runtime which identity to use (required when multiple UAMIs are attached)
+
+## CORS
+
+If you call the Function App from a browser (e.g. from a local FastAPI frontend or Swagger UI), you need to allow the origin in the Function App's CORS settings. By default, all origins are blocked.
+
+**Portal → `func-eh-fa` → API → CORS → add your origin (e.g. `http://localhost:8000`) → Save**
+
+![CORS configuration on the Function App](images/cors.png)
+
+To allow all origins during development:
+```shell
+az functionapp cors add --name func-eh-fa --resource-group rg-eh-fa --allowed-origins '*'
+```
+
+To allow a specific origin only:
+```shell
+az functionapp cors add --name func-eh-fa --resource-group rg-eh-fa --allowed-origins 'http://localhost:8000'
+```
+
+> **Note:** CORS is enforced by the Function App host, not by your function code. If you receive a `CORS policy` browser error, the origin is not in the allowed list — add it here, not in the Python code.
 
 ## Configuration
 
@@ -132,16 +163,17 @@ Copy `az-cli/.env.example` to `az-cli/.env` and fill in:
 | Variable | Description |
 |---|---|
 | `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID |
-| `AZURE_STORAGE_ACCOUNT_CONNECTION_STRING` | Retrieved after running script 02 |
+| `AZURE_CORS_ORIGIN` | Origin allowed by the Function App CORS policy (default: `http://localhost:8000`) |
 
-All other variables have defaults defined in `.env.example`. `EVENT_HUB_CONNECTION_STRING` is no longer needed — the Function App authenticates via managed identity.
+All other variables have defaults defined in `.env.example`. No connection strings are needed — `AzureWebJobsStorage` is fetched live from Azure by script 05, and Event Hub authentication uses managed identity.
 
 ### Function App Settings
 
 | Setting | Value |
 |---|---|
-| `AzureWebJobsStorage` | Storage account connection string |
+| `AzureWebJobsStorage` | Storage account connection string (set automatically by script 05) |
 | `EVENT_HUB_CONNECTION__fullyQualifiedNamespace` | `evhns-eh-fa.servicebus.windows.net` |
+| `EVENT_HUB_CONNECTION__clientId` | UAMI client ID of `uami-eh-fa` (set automatically by script 05) |
 | `EVENT_HUB_NAME` | `evh-eh-fa` |
 | `EVENT_HUB_CONSUMER_GROUP` | `$Default` |
 | `WEBSITE_VNET_ROUTE_ALL` | `1` — route all outbound traffic through VNet |
@@ -166,7 +198,7 @@ cp az-cli/.env.example az-cli/.env   # fill in your values
 ./az-cli/01_create_rg_vnet_subnet.sh  # RG + VNet + Subnets (func + PE)
 ./az-cli/02_create_storage.sh         # storage account + container
 ./az-cli/03_create_eventhub.sh        # Event Hub namespace + hub
-./az-cli/04_create_eventgrid.sh       # wire Event Grid → Event Hub
+./az-cli/04_create_eventgrid.sh       # create Event Grid system topic + subscription → Event Hub
 ./az-cli/05_deploy_function.sh        # build image, deploy Function App, VNet integration
 
 # Optional — reproduces the UBS scenario (Event Hub with public access disabled):
@@ -271,19 +303,34 @@ az functionapp config appsettings list --name func-eh-fa --resource-group rg-eh-
 
 ## How to Monitor
 
-### Function invocations
+### Real-time logs via Azure CLI (recommended)
 
-**Portal → `func-eh-fa` → Functions → `process_blob_event` → Invocations**
-
-### Logs via Azure CLI
+The fastest way to observe function execution is to stream logs directly from the container:
 
 ```shell
 az webapp log tail --name func-eh-fa --resource-group rg-eh-fa
 ```
 
+This connects to the live log stream and prints output as soon as the function runs. You will see lines like:
+
+```
+2026-05-08T10:00:01.123Z info: Host.Function.Console[0]
+      Event received: {"subject": "/blobServices/default/containers/container-eh-fa/blobs/test.txt", ...}
+2026-05-08T10:00:01.124Z info: Host.Function.Console[0]
+      Event type : Microsoft.Storage.BlobCreated
+2026-05-08T10:00:01.125Z info: Host.Function.Console[0]
+      Subject    : /blobServices/default/containers/container-eh-fa/blobs/test.txt
+2026-05-08T10:00:01.126Z info: Host.Function.Console[0]
+      Blob URL   : https://saehfa.blob.core.windows.net/container-eh-fa/test.txt
+```
+
+> **Note:** The portal invocation monitor (**`func-eh-fa` → Functions → `process_blob_event` → Invocations**) shows the same data but with a 2-5 minute delay due to Application Insights telemetry ingestion. Use `az webapp log tail` for real-time feedback.
+
 ### Event Hub metrics
 
 **Portal → `evhns-eh-fa` → `evh-eh-fa` → Metrics → Incoming Messages**
+
+Useful to verify that Event Grid is delivering messages to Event Hub independently of the Function App.
 
 ### VNet integration status
 
