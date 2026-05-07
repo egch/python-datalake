@@ -1,12 +1,14 @@
 #!/bin/bash
 # Configure user-assigned managed identity (UAMI) for the Function App to connect to Event Hub.
 # Required when local authentication (SAS keys) is disabled on the namespace.
+# Safe to rerun — idempotent.
 #
 # What this does:
 #   1. Creates the UAMI (if it doesn't exist)
 #   2. Assigns Azure Event Hubs Data Receiver role to that identity
 #   3. Attaches the UAMI to the Function App
-#   4. Replaces EVENT_HUB_CONNECTION_STRING with the managed identity equivalent
+#   4. Sets the correct app settings (EVENT_HUB_CONNECTION__ prefix)
+#   5. Removes any stale/wrong settings
 set -euo pipefail
 source "$(dirname "$0")/.env"
 
@@ -40,6 +42,10 @@ UAMI_CLIENT_ID=$(az identity show \
 echo "UAMI principal ID : $UAMI_PRINCIPAL_ID"
 echo "UAMI client ID    : $UAMI_CLIENT_ID"
 
+# Wait for the service principal to propagate in Entra ID before assigning roles
+echo "Waiting 30s for Entra ID propagation..."
+sleep 30
+
 # ── 2. Assign Azure Event Hubs Data Receiver role ─────────────────────────────
 echo "Assigning Azure Event Hubs Data Receiver role"
 az role assignment create \
@@ -56,19 +62,27 @@ az functionapp identity assign \
   --identities "$UAMI_RESOURCE_ID" \
   --output table
 
-# ── 4. Update app settings for managed identity ───────────────────────────────
-echo "Updating app settings for managed identity"
+# ── 4. Set correct app settings ───────────────────────────────────────────────
+# The connection name must match the 'connection' parameter in function_app.py: "EVENT_HUB_CONNECTION"
+echo "Setting app settings"
 az functionapp config appsettings set \
   --name "$AZURE_FUNC_APP_NAME" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --settings \
-    "EVENT_HUB_CONNECTION_STRING__fullyQualifiedNamespace=${AZURE_EVENTHUB_NAMESPACE}.servicebus.windows.net" \
-    "EVENT_HUB_CONNECTION_STRING__clientId=${UAMI_CLIENT_ID}" \
+    "EVENT_HUB_CONNECTION__fullyQualifiedNamespace=${AZURE_EVENTHUB_NAMESPACE}.servicebus.windows.net" \
+    "EVENT_HUB_CONNECTION__clientId=${UAMI_CLIENT_ID}" \
   --output table
 
+# ── 5. Remove stale/wrong settings ────────────────────────────────────────────
+echo "Removing stale settings (if any)"
+STALE_KEYS=(
+  "EVENT_HUB_CONNECTION_STRING"
+  "EVENT_HUB_CONNECTION_STRING__fullyQualifiedNamespace"
+  "EVENT_HUB_CONNECTION_STRING__clientId"
+)
 az functionapp config appsettings delete \
   --name "$AZURE_FUNC_APP_NAME" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
-  --setting-names "EVENT_HUB_CONNECTION_STRING"
+  --setting-names "${STALE_KEYS[@]}" 2>/dev/null || true
 
 echo "Done."

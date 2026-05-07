@@ -12,6 +12,11 @@ az storage account create \
   --kind StorageV2 \
   --output table
 
+echo "Waiting for storage account to be ready..."
+until az storage account show --name "$AZURE_STORAGE_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" --query provisioningState --output tsv 2>/dev/null | grep -q "Succeeded"; do
+  sleep 5
+done
+
 echo "Creating container: $AZURE_STORAGE_CONTAINER"
 az storage container create \
   --name "$AZURE_STORAGE_CONTAINER" \

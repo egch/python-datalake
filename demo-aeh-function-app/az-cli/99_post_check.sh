@@ -65,6 +65,13 @@ az eventhubs namespace show \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --query "disableLocalAuth" --output tsv
 
+az eventgrid system-topic event-subscription show \
+    --name sub-container-eh-fa \
+    --system-topic-name evgt-storage-eh-fa \
+    --resource-group rg-eh-fa \
+    --query "{state:provisioningState, lastError:deliveryWithResourceIdentity}" \
+    --output json
+
 # ── 7. Stream Function App host logs ─────────────────────────────────────────
 echo "── 7. Streaming Function App host logs (Ctrl+C to stop)"
 az webapp log tail \
