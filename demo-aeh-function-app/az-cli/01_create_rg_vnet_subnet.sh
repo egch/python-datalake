@@ -1,6 +1,7 @@
 #!/bin/bash
 # Create resource groups, virtual network and subnet
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 echo "Creating resource group: $AZURE_RESOURCE_GROUP"

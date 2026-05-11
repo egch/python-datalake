@@ -1,6 +1,7 @@
 #!/bin/bash
 # Post-deployment checks: verify the full blob → Event Grid → Event Hub → Function chain.
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 EVENTHUB_NAMESPACE_RESOURCE_ID=$(az eventhubs namespace show \

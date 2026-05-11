@@ -2,6 +2,7 @@
 # Create Event Hub namespace and hub with public network access disabled.
 # Trusted service access is enabled so Event Grid (managed identity) can still deliver.
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 echo "Creating Event Hub namespace: $AZURE_EVENTHUB_NAMESPACE (public network: Disabled, local auth: Disabled)"

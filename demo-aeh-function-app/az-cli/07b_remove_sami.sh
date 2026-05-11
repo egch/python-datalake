@@ -3,6 +3,7 @@
 # and delete its Event Hub role assignment.
 # Run this after 07_configure_managed_identity.sh if you migrated from SAMI to UAMI.
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 EVENTHUB_NAMESPACE_RESOURCE_ID=$(az eventhubs namespace show \

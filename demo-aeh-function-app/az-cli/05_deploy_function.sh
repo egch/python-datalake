@@ -3,6 +3,7 @@
 # The Function App uses a user-assigned managed identity (UAMI) to authenticate to Event Hub
 # (SAS keys are disabled on the namespace).
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 SCRIPT_DIR="$(dirname "$0")"
@@ -97,8 +98,7 @@ if [ -z "$FUNC_EXISTS" ]; then
     --resource-group "$AZURE_RESOURCE_GROUP" \
     --storage-account "$AZURE_STORAGE_ACCOUNT" \
     --plan "$AZURE_APP_SERVICE_PLAN" \
-    --image "docker.io/egch/func-consumer-ehfa:latest" \
-    --functions-version 4 \
+    --deployment-container-image-name "docker.io/egch/func-consumer-ehfa:latest" \
     --output table
 else
   echo "Function App $AZURE_FUNC_APP_NAME already exists, skipping."
@@ -131,32 +131,30 @@ az functionapp vnet-integration add \
 # ── 9. Configure app settings ─────────────────────────────────────────────────
 echo "Configuring app settings"
 
-SETTINGS_FILE=$(mktemp /tmp/func_settings_XXXXXX.json)
-cat > "$SETTINGS_FILE" <<EOF
-[
-  {"name": "FUNCTIONS_WORKER_RUNTIME",                      "value": "python"},
-  {"name": "EVENT_HUB_CONNECTION__fullyQualifiedNamespace", "value": "${AZURE_EVENTHUB_NAMESPACE}.servicebus.windows.net"},
-  {"name": "EVENT_HUB_CONNECTION__clientId",                "value": "${UAMI_CLIENT_ID}"},
-  {"name": "EVENT_HUB_NAME",                                "value": "${AZURE_EVENTHUB_NAME}"},
-  {"name": "EVENT_HUB_CONSUMER_GROUP",                      "value": "\$Default"},
-  {"name": "WEBSITE_VNET_ROUTE_ALL",                        "value": "1"}
-]
-EOF
-
 az functionapp config appsettings set \
   --name "$AZURE_FUNC_APP_NAME" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
-  --settings @"$SETTINGS_FILE" \
+  --settings \
+    "FUNCTIONS_WORKER_RUNTIME=python" \
+    "EVENT_HUB_CONNECTION__fullyQualifiedNamespace=${AZURE_EVENTHUB_NAMESPACE}.servicebus.windows.net" \
+    "EVENT_HUB_CONNECTION__clientId=${UAMI_CLIENT_ID}" \
+    "EVENT_HUB_NAME=${AZURE_EVENTHUB_NAME}" \
+    "EVENT_HUB_CONSUMER_GROUP=\$Default" \
+    "WEBSITE_VNET_ROUTE_ALL=1" \
   --output table
-
-rm -f "$SETTINGS_FILE"
 
 # ── 10. Configure CORS ────────────────────────────────────────────────────────
 echo "Configuring CORS"
 az functionapp cors add \
   --name "$AZURE_FUNC_APP_NAME" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
-  --allowed-origins "$AZURE_CORS_ORIGIN" \
+  --allowed-origins "$AZURE_CORS_ORIGIN" "https://portal.azure.com" \
+  --output table
+
+az functionapp cors credentials \
+  --name "$AZURE_FUNC_APP_NAME" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --enable true \
   --output table
 
 # ── 11. Refresh AzureWebJobsStorage from Azure ───────────────────────────────

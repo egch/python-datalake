@@ -2,6 +2,7 @@
 # Run all deployment scripts in order.
 # Skips: 04b (merged into 04), 06 (optional private endpoint), 07/07b (migration scripts), 99 (post-check).
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 
 SCRIPT_DIR="$(dirname "$0")"
 

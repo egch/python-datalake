@@ -10,6 +10,7 @@
 #   4. Sets the correct app settings (EVENT_HUB_CONNECTION__ prefix)
 #   5. Removes any stale/wrong settings
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 EVENTHUB_NAMESPACE_RESOURCE_ID=$(az eventhubs namespace show \

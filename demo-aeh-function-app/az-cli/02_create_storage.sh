@@ -1,6 +1,7 @@
 #!/bin/bash
 # Create storage account and blob container watched by Event Grid
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 echo "Creating storage account: $AZURE_STORAGE_ACCOUNT"

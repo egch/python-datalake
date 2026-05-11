@@ -12,6 +12,7 @@
 # After this runs the Function App resolves evhns-eh-fa.servicebus.windows.net
 # to the private IP — no code or connection-string changes required.
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 DNS_ZONE="privatelink.servicebus.windows.net"

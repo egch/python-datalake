@@ -12,6 +12,7 @@
 #     → Event Grid system topic  (system-assigned managed identity)
 #       → delivers to Event Hub  (identity has Azure Event Hubs Data Sender role)
 set -euo pipefail
+export MSYS_NO_PATHCONV=1  # prevent Git Bash from mangling /subscriptions/... Azure resource IDs into Windows paths
 source "$(dirname "$0")/.env"
 
 STORAGE_RESOURCE_ID=$(az storage account show \
