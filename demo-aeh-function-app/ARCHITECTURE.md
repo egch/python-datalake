@@ -179,6 +179,23 @@ Event Grid system topic
 
 The Function App needs to authenticate to Event Hub to **read** messages. SAS keys are disabled (`DisableLocalAuth: true`) so it must use a managed identity.
 
+**The UAMI requires two completely separate operations — both are mandatory:**
+
+| Operation | Azure CLI command | What it does |
+|---|---|---|
+| Role assignment on Event Hub namespace | `az role assignment create --scope <namespace-id> --role "Azure Event Hubs Data Receiver"` | Grants the UAMI **permission** to read from Event Hub |
+| Attach UAMI to the Function App | `az functionapp identity assign --identities <uami-resource-id>` | Gives the Function App **access to use** that identity |
+
+Think of the UAMI as a **badge**:
+- The **role assignment** loads permissions onto the badge (the badge grants access to Event Hub)
+- **Attaching it to the Function App** gives the badge to the Function App so it can present it when authenticating
+
+One without the other does not work:
+- UAMI attached to Function App but **no role on Event Hub** → Function App can present the identity but Event Hub rejects it (unauthorized)
+- UAMI has role on Event Hub but **not attached to Function App** → Function App cannot present the identity at all (it does not hold it)
+
+The app setting `EVENT_HUB_CONNECTION__clientId` then tells the Functions runtime **which badge to use**, since a Function App can have multiple UAMIs attached.
+
 **Why UAMI instead of System-Assigned Managed Identity (SAMI)?**
 
 | | SAMI | UAMI |
@@ -313,6 +330,17 @@ Yes. Scripts 01–05 work with public network access enabled (the default). Scri
 **Q: Why does the portal say "data operations will not work" when public access is disabled?**
 
 The Azure Portal's Event Hub data explorer connects to the data plane over the **public endpoint**. When public access is disabled, the portal cannot send or receive messages. This does not affect the Function App (which goes through the private endpoint) or Event Grid (which uses the trusted bypass). Use `az webapp log tail` to observe function invocations, or check **Metrics → Incoming Messages** in the portal (which uses the management plane, still accessible).
+
+---
+
+**Q: The UAMI is already configured — do I need to do anything else to wire it to the Function App?**
+
+Yes — two things, both required:
+
+1. **Role assignment on the Event Hub namespace** — grants the UAMI permission to read messages (`Azure Event Hubs Data Receiver` role). This is set on the Event Hub side.
+2. **Attach the UAMI to the Function App** (`az functionapp identity assign`) — gives the Function App access to use that identity. This is set on the Function App side.
+
+These are independent operations and easy to miss one of. If the role is assigned but the UAMI is not attached, the Function App cannot present the identity. If the UAMI is attached but has no role, Event Hub will reject the authentication.
 
 ---
 
