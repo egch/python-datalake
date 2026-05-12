@@ -18,11 +18,16 @@ until az storage account show --name "$AZURE_STORAGE_ACCOUNT" --resource-group "
   sleep 5
 done
 
+STORAGE_KEY=$(az storage account keys list \
+  --account-name "$AZURE_STORAGE_ACCOUNT" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query "[0].value" --output tsv)
+
 echo "Creating container: $AZURE_STORAGE_CONTAINER"
 az storage container create \
   --name "$AZURE_STORAGE_CONTAINER" \
   --account-name "$AZURE_STORAGE_ACCOUNT" \
-  --auth-mode login \
+  --account-key "$STORAGE_KEY" \
   --output table
 
 echo "Done."
