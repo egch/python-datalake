@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Large File Upload POC</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f6f9;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 40px 16px;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      padding: 36px 40px;
+      width: 100%;
+      max-width: 560px;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.4rem; color: #1a1a2e; }
+    .subtitle { margin: 0 0 28px; font-size: 0.85rem; color: #666; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; color: #444; margin-bottom: 4px; }
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #d0d5dd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-bottom: 16px;
+    }
+    input[type="file"] { padding: 6px; background: #fafafa; }
+    .file-meta { font-size: 0.78rem; color: #888; margin-top: -12px; margin-bottom: 16px; }
+    button {
+      width: 100%;
+      padding: 11px;
+      background: #0078d4;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #005ea2; }
+    button:disabled { background: #b0c4d8; cursor: not-allowed; }
+    .progress-wrap {
+      margin-top: 20px;
+      background: #e8ecf0;
+      border-radius: 999px;
+      height: 10px;
+      display: none;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: #0078d4;
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+    #status {
+      margin-top: 14px;
+      font-size: 0.85rem;
+      min-height: 20px;
+      color: #444;
+    }
+    #status.success { color: #1a7f37; font-weight: 600; }
+    #status.error   { color: #cf222e; font-weight: 600; }
+    .link-row { margin-top: 16px; font-size: 0.8rem; color: #888; text-align: center; }
+    .link-row a { color: #0078d4; text-decoration: none; }
+    .link-row a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Large File Upload POC</h1>
+    <p class="subtitle">Files are uploaded directly to Azure Blob Storage via a SAS URL — this server only issues the token.</p>
+
+    <label for="container">Container</label>
+    <input id="container" type="text" value="large-uploads" placeholder="blob container name" />
+
+    <label for="file-input">File</label>
+    <input id="file-input" type="file" onchange="showFileMeta(this)" />
+    <div class="file-meta" id="file-meta"></div>
+
+    <button id="upload-btn" onclick="startUpload()">Upload</button>
+
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <div id="status"></div>
+
+    <div class="link-row">
+      <a href="/docs" target="_blank">Swagger UI</a> &nbsp;·&nbsp;
+      <a href="/redoc" target="_blank">ReDoc</a>
+    </div>
+  </div>
+
+  <script>
+    const BLOCK_SIZE = 4 * 1024 * 1024; // 4 MB per block
+
+    function showFileMeta(input) {
+      const meta = document.getElementById('file-meta');
+      if (!input.files[0]) { meta.textContent = ''; return; }
+      const f = input.files[0];
+      meta.textContent = `${f.name}  —  ${(f.size / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    function setStatus(msg, cls) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = cls || '';
+    }
+
+    // Uploads directly to Azure Blob Storage using the block blob REST API.
+    // No external SDK needed — splits the file into 4 MB blocks, PUTs each one,
+    // then commits the block list. Handles files of any size.
+    async function uploadBlockBlob(sasUrl, file, onProgress) {
+      const blockIds = [];
+      let offset = 0;
+      let blockNum = 0;
+
+      while (offset < file.size) {
+        const chunk = file.slice(offset, Math.min(offset + BLOCK_SIZE, file.size));
+        // Block IDs must be base64-encoded and all the same length
+        const blockId = btoa('block-' + String(blockNum).padStart(6, '0'));
+        blockIds.push(blockId);
+
+        const blockUrl = `${sasUrl}&comp=block&blockid=${encodeURIComponent(blockId)}`;
+        const resp = await fetch(blockUrl, {
+          method: 'PUT',
+          headers: { 'x-ms-version': '2020-10-02' },
+          body: chunk,
+        });
+        if (!resp.ok) {
+          const detail = await resp.text();
+          throw new Error(`Block ${blockNum} failed (HTTP ${resp.status}): ${detail}`);
+        }
+
+        offset += chunk.size;
+        blockNum++;
+        onProgress(Math.min(offset, file.size));
+      }
+
+      // Commit all staged blocks as a single blob
+      const blockListXml = [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<BlockList>',
+        ...blockIds.map(id => `  <Latest>${id}</Latest>`),
+        '</BlockList>',
+      ].join('\n');
+
+      const commitUrl = `${sasUrl}&comp=blocklist`;
+      const commitResp = await fetch(commitUrl, {
+        method: 'PUT',
+        headers: {
+          'x-ms-version': '2020-10-02',
+          'Content-Type': 'application/xml',
+        },
+        body: blockListXml,
+      });
+      if (!commitResp.ok) {
+        const detail = await commitResp.text();
+        throw new Error(`Commit failed (HTTP ${commitResp.status}): ${detail}`);
+      }
+    }
+
+    async function startUpload() {
+      const file = document.getElementById('file-input').files[0];
+      const container = document.getElementById('container').value.trim();
+      const btn = document.getElementById('upload-btn');
+      const progressWrap = document.getElementById('progress-wrap');
+      const progressBar = document.getElementById('progress-bar');
+
+      if (!file)      { setStatus('Please select a file.', 'error'); return; }
+      if (!container) { setStatus('Please enter a container name.', 'error'); return; }
+
+      btn.disabled = true;
+      progressWrap.style.display = 'block';
+      progressBar.style.width = '0%';
+      setStatus('Requesting upload URL…');
+
+      try {
+        // 1. Get a write-only SAS URL from the backend
+        const res = await fetch('/upload/presigned-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, container }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to get upload URL');
+        }
+        const { sas_url, expires_at } = await res.json();
+
+        // 2. Upload directly to Azure — file never touches this server
+        setStatus('Uploading…');
+        await uploadBlockBlob(sas_url, file, (loadedBytes) => {
+          const pct = Math.min(100, Math.round((loadedBytes / file.size) * 100));
+          progressBar.style.width = pct + '%';
+          const loaded = (loadedBytes / 1024 / 1024).toFixed(1);
+          const total  = (file.size  / 1024 / 1024).toFixed(1);
+          setStatus(`Uploading… ${pct}%  (${loaded} / ${total} MB)`);
+        });
+
+        progressBar.style.width = '100%';
+
+        // 3. Notify the backend that the upload is complete
+        await fetch(
+          `/upload/complete?blob_name=${encodeURIComponent(file.name)}&container=${encodeURIComponent(container)}`,
+          { method: 'POST' }
+        );
+
+        setStatus(`Done! "${file.name}" uploaded to "${container}". SAS expires at ${expires_at}.`, 'success');
+
+      } catch (err) {
+        setStatus('Error: ' + err.message, 'error');
+        progressWrap.style.display = 'none';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
