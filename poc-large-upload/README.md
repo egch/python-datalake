@@ -116,12 +116,24 @@ After uploading, blobs appear immediately in the `large-uploads` container in th
 
 ---
 
+## How chunked upload works
+
+The file is automatically split into configurable chunks (blocks) that are uploaded in parallel directly to Azure Blob Storage, making it efficient and reliable for files of any size.
+
+- Each block is a separate `PUT` request (`?comp=block`) using the same SAS token
+- Once all blocks are uploaded, a final `PUT` commit (`?comp=blocklist`) assembles them into a single blob
+- Block size is set to **4 MB** by default (`static/index.html`) — Azure supports anything from 100 KB to 4000 MB per block
+- If one block fails, only that block needs to be retried — not the whole file
+
+---
+
 ## How the SAS URL works
 
 - Valid for **1 hour** (configurable via `SAS_EXPIRY_HOURS` in `.env`)
 - **Write + create only** — the caller cannot read, list, or delete blobs
 - Scoped to the **exact blob name** requested — not the whole container
 - Once the URL expires it is useless, even if intercepted
+- A single SAS token is reused for all block requests — if the upload takes longer than the expiry, the token will need to be refreshed
 
 ---
 
